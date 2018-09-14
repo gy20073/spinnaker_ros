@@ -162,8 +162,8 @@ void acquisition::Capture::load_cameras() {
 				if (PUBLISH_CAM_INFO_){
 					sensor_msgs::CameraInfo ci_msg;
 					
-					ci_msg.height = 1024;
-					ci_msg.width = 1280;
+					ci_msg.height = 1536;
+					ci_msg.width = 2048;
 					ci_msg.distortion_model = "plumb_bob";
 					ci_msg.D = distortion_coeff_vec_[j];
 					ci_msg.binning_x = binning_;
@@ -360,6 +360,9 @@ void acquisition::Capture::read_parameters() {
 	XmlRpc::XmlRpcValue intrinsics_list;
     if (nh_pvt_.getParam("intrinsic_coeffs", intrinsics_list)) {
 		ROS_INFO("  Camera Intrinsic Paramters:");
+		ROS_INFO_STREAM("  intrinsic list size:" << intrinsics_list.size());
+		ROS_INFO_STREAM("  num ids:" << num_ids);
+
 		ROS_ASSERT_MSG(intrinsics_list.size() == num_ids,"If intrinsic_coeffs are provided, they should be the same number as cam_ids and should correspond in order!");
 		for (int i=0; i<intrinsics_list.size(); i++){
 			std::vector<double> intrinsics;
@@ -461,6 +464,17 @@ void acquisition::Capture::init_cameras(bool soft = false) {
                     cams[i].setFloatValue("ExposureTime", exposure_time_);
                 } else {
                     cams[i].setEnumValue("ExposureAuto", "Continuous");
+                    // add by yang to set roi exposure
+
+                    cams[i].setEnumValue("AutoAlgorithmSelector", "Ae");
+                    cams[i].setBoolValue("AasRoiEnable", true);
+
+                    cams[i].setIntValue("AasRoiOffsetX", 0);
+                    cams[i].setIntValue("AasRoiOffsetY", 384);
+                    cams[i].setIntValue("AasRoiHeight", 384);
+                    cams[i].setIntValue("AasRoiWidth", 2048);
+                    ROS_DEBUG_STREAM("Warning: Yang's roi is in effect");
+
                 }
                 
                 // cams[i].setIntValue("DecimationHorizontal", decimation_);
@@ -686,7 +700,10 @@ void acquisition::Capture::get_mat_images() {
 
     for (int i=0; i<numCameras_; i++) {
 
+        ROS_INFO_STREAM("*** before grabbing *** camera id"  << i );
+
         frames_[i] = cams[i].grab_mat_frame();
+        ROS_INFO_STREAM("*** right after *** camera id"  << i );
 
         time_stamps_[i] = cams[i].get_time_stamp();
 
@@ -701,8 +718,9 @@ void acquisition::Capture::get_mat_images() {
             ss << cams[i].get_frame_id() << "]";
         else
             ss << cams[i].get_frame_id() << ", ";
-        
+        ROS_INFO_STREAM("*** end of grabbing *** camera id"  << i );
     }
+    ROS_INFO("*** after grabbing all messages ***");
     string message = ss.str();
     ROS_DEBUG_STREAM(message);
 
@@ -718,6 +736,7 @@ void acquisition::Capture::run_soft_trig() {
     ROS_INFO("*** ACQUISITION ***");
     
     start_acquisition();
+    ROS_INFO("*** after start acquision ***");
 
     // Camera directories created at first save
     
@@ -726,7 +745,10 @@ void acquisition::Capture::run_soft_trig() {
     int count = 0;
     
     cams[MASTER_CAM_].trigger();
+    ROS_INFO("*** after trigger ***");
     get_mat_images();
+
+    ROS_INFO("*** after get mat images ***");
     if (SAVE_) {
         count++;
         if (SAVE_BIN_)
@@ -736,7 +758,8 @@ void acquisition::Capture::run_soft_trig() {
     }
 
     ros::Rate ros_rate(soft_framerate_);
-    
+    ROS_INFO("*** before try ***");
+
     try{
     while( ros::ok() ) {
 
@@ -799,6 +822,7 @@ void acquisition::Capture::run_soft_trig() {
             get_mat_images();
         }
 
+        ROS_INFO("*** after auto trigger ***");
 
         
         if (SAVE_) {
@@ -819,7 +843,7 @@ void acquisition::Capture::run_soft_trig() {
         }
         
         if (EXPORT_TO_ROS_) export_to_ROS();
-        
+        ROS_INFO("*** after export to ros ***");
         // ros publishing messages
         acquisition_pub.publish(mesg);
 
@@ -840,6 +864,13 @@ void acquisition::Capture::run_soft_trig() {
 
     }
 	}
+	catch (Spinnaker::Exception &e){
+        ROS_ERROR_STREAM("  Exception when captureing" << "\nError: " << e.what());
+	}
+	catch (const std::exception& e) { // caught by reference to base
+        ROS_ERROR_STREAM(" a standard exception was caught, with message '"
+                  << e.what() << "'\n");
+    }
 	catch(...){
           ROS_FATAL_STREAM("Some exception occured. \v Exiting gracefully, \n  possible reason could be Camera Disconnection...");
 	}

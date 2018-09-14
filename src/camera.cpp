@@ -160,8 +160,10 @@ void acquisition::Camera::setIntValue(string setting, int val) {
     INodeMap & nodeMap = pCam_->GetNodeMap();
     
     CIntegerPtr ptr = nodeMap.GetNode(setting.c_str());
-    if (!IsAvailable(ptr) || !IsWritable(ptr)) {
-        ROS_FATAL_STREAM("Unable to set " << setting << " to " << val << " (ptr retrieval). Aborting...");
+    if (!IsAvailable(ptr) ){
+        ROS_FATAL_STREAM("Not found " << setting << " to " << val << " (ptr retrieval). Aborting...");
+    }else if(!IsWritable(ptr)) {
+        ROS_FATAL_STREAM("Unable to set not writable " << setting << " to " << val << " (ptr retrieval). Aborting...");
     }
     ptr->SetValue(val);
 

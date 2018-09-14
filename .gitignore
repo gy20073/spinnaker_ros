@@ -41,3 +41,12 @@ devel
 
 # ignore avi
 *.avi
+
+.idea/
+CMake*
+CTest*
+Makefile
+catkin*
+cmake*
+gtest
+
