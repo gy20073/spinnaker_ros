@@ -495,24 +495,34 @@ void acquisition::Capture::init_cameras(bool soft = false) {
 							cams[i].setBoolValue("AcquisitionFrameRateEnable", false);
 							//cams[i].setFloatValue("AcquisitionFrameRate", 170);							
 					}	else{
-							cams[i].setEnumValue("TriggerMode", "On");
-							cams[i].setEnumValue("LineSelector", "Line2");
-							cams[i].setEnumValue("LineMode", "Output");
-							cams[i].setEnumValue("TriggerSource", "Software");
+					        if(0){
+                                cams[i].setEnumValue("TriggerMode", "On");
+                                cams[i].setEnumValue("LineSelector", "Line2");
+                                cams[i].setEnumValue("LineMode", "Output");
+                                cams[i].setEnumValue("TriggerSource", "Software");
+							}else{
+                                cams[i].setEnumValue("TriggerMode", "On");
+                                cams[i].setEnumValue("TriggerSource", "Software");
+							}
 					}
 					//cams[i].setEnumValue("LineSource", "ExposureActive");
 
 						
                 } else {
-                    cams[i].setEnumValue("TriggerMode", "On");
-                    cams[i].setEnumValue("LineSelector", "Line3");
-                    cams[i].setEnumValue("TriggerSource", "Line3");
-					cams[i].setEnumValue("TriggerSelector", "FrameStart");
-                    cams[i].setEnumValue("LineMode", "Input");
-                    
-// 					cams[i].setFloatValue("TriggerDelay", 40.0);
-					cams[i].setEnumValue("TriggerOverlap", "ReadOut");//"Off"
-                    cams[i].setEnumValue("TriggerActivation", "RisingEdge");
+                    if(0){
+                        cams[i].setEnumValue("TriggerMode", "On");
+                        cams[i].setEnumValue("LineSelector", "Line3");
+                        cams[i].setEnumValue("TriggerSource", "Line3");
+                        cams[i].setEnumValue("TriggerSelector", "FrameStart");
+                        cams[i].setEnumValue("LineMode", "Input");
+
+    // 					cams[i].setFloatValue("TriggerDelay", 40.0);
+                        cams[i].setEnumValue("TriggerOverlap", "ReadOut");//"Off"
+                        cams[i].setEnumValue("TriggerActivation", "RisingEdge");
+                    }else{
+                        cams[i].setEnumValue("TriggerMode", "On");
+                        cams[i].setEnumValue("TriggerSource", "Software");
+                    }
 
                 }
                 
@@ -629,14 +639,19 @@ void acquisition::Capture::export_to_ROS() {
 	std_msgs::Header img_msg_header;
 	img_msg_header.stamp = mesg.header.stamp;
 	
-	
+
 	for (unsigned int i = 0; i < numCameras_; i++) {
 		img_msg_header.frame_id = "cam_"+to_string(i)+"_optical_frame";
 
+        cv_bridge::CvImage cv_image;
 		if(color_)
-			img_msgs[i]=cv_bridge::CvImage(img_msg_header, "bgr8", frames_[i]).toImageMsg();
-			else
-				img_msgs[i]=cv_bridge::CvImage(img_msg_header, "mono8", frames_[i]).toImageMsg();
+		    cv_image = cv_bridge::CvImage(img_msg_header, "bgr8", frames_[i]);
+		else
+		    cv_image = cv_bridge::CvImage(img_msg_header, "mono8", frames_[i]);
+
+        cv::resize(cv_image.image, cv_image.image, cv::Size(768, 576));
+
+        img_msgs[i] = cv_image.toImageMsg();
 
 		camera_image_pubs[i].publish(img_msgs[i]);
 
@@ -645,6 +660,36 @@ void acquisition::Capture::export_to_ROS() {
 		camera_info_pubs[i].publish(cam_info_msgs[i]);
 	}
 	}
+
+
+    /*
+    img_msg_header.frame_id = "cam_"+to_string(0)+"_optical_frame";
+    cv_bridge::CvImage cv_image_accum;
+    if(color_)
+        cv_image_accum = cv_bridge::CvImage(img_msg_header, "bgr8", frames_[0]);
+    else
+        cv_image_accum = cv_bridge::CvImage(img_msg_header, "mono8", frames_[0]);
+    cv::resize(cv_image_accum.image, cv_image_accum.image, cv::Size(768, 576));
+
+
+	for (unsigned int i = 1; i < numCameras_; i++) {
+		img_msg_header.frame_id = "cam_"+to_string(i)+"_optical_frame";
+
+        cv_bridge::CvImage cv_image;
+		if(color_)
+		    cv_image = cv_bridge::CvImage(img_msg_header, "bgr8", frames_[i]);
+		else
+		    cv_image = cv_bridge::CvImage(img_msg_header, "mono8", frames_[i]);
+
+        cv::resize(cv_image.image, cv_image.image, cv::Size(768, 576));
+        cv::hconcat(cv_image.image, cv_image_accum.image, cv_image_accum.image);
+	}
+
+	//img_msgs[i] = cv_accum.toImageMsg();
+	camera_image_pubs[0].publish(cv_image_accum.toImageMsg());
+	*/
+
+
 	export_to_ROS_time_ = ros::Time::now().toSec()-t;;
 }
 
@@ -743,10 +788,17 @@ void acquisition::Capture::run_soft_trig() {
     if (LIVE_)namedWindow("Acquisition", CV_WINDOW_NORMAL | CV_WINDOW_KEEPRATIO);
 
     int count = 0;
-    
+
+    /*
     cams[MASTER_CAM_].trigger();
     ROS_INFO("*** after trigger ***");
     get_mat_images();
+    */
+    for (int i=0; i<cams.size(); i++){
+            cams[i].trigger();
+    }
+    get_mat_images();
+
 
     ROS_INFO("*** after get mat images ***");
     if (SAVE_) {
@@ -815,12 +867,18 @@ void acquisition::Capture::run_soft_trig() {
         }
 
         double disp_time_ = ros::Time::now().toSec() - t;
-        
+
+        /*
         // Call update functions
         if (!MANUAL_TRIGGER_) {
             cams[MASTER_CAM_].trigger();
             get_mat_images();
         }
+        */
+        for (int i=0; i<cams.size(); i++){
+            cams[i].trigger();
+        }
+        get_mat_images();
 
         ROS_INFO("*** after auto trigger ***");
 
