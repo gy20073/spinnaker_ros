@@ -649,7 +649,7 @@ void acquisition::Capture::export_to_ROS() {
 		else
 		    cv_image = cv_bridge::CvImage(img_msg_header, "mono8", frames_[i]);
 
-        cv::resize(cv_image.image, cv_image.image, cv::Size(768, 576));
+        cv::resize(cv_image.image, cv_image.image, cv::Size(768*2, 576*2));
 
         img_msgs[i] = cv_image.toImageMsg();
 
